@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloud Time Tracker (Free Edition)</title>
+    <title>Cloud Time Tracker Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --primary: #4a90e2; --danger: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
@@ -15,25 +16,30 @@
         .user-info { display: none; align-items: center; gap: 10px; justify-content: flex-end; }
         #logoutBtn { background: none; border: none; color: #999; cursor: pointer; font-size: 0.8rem; text-decoration: underline; }
 
-        /* タイマー・履歴（デザインは前回を継承） */
-        .timer-display { font-size: 3.5rem; font-weight: bold; text-align: center; margin: 25px 0; color: #333; font-variant-numeric: tabular-nums; }
-        .input-group { margin-bottom: 20px; }
-        input[type="text"] { width: 100%; padding: 14px; border: 2px solid #eee; border-radius: 8px; box-sizing: border-box; font-size: 1rem; outline: none; }
+        /* 入力エリア */
+        .timer-display { font-size: 3.5rem; font-weight: bold; text-align: center; margin: 15px 0; color: #333; font-variant-numeric: tabular-nums; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input[type="text"] { flex: 2; padding: 12px; border: 2px solid #eee; border-radius: 8px; outline: none; }
+        select { flex: 1; padding: 12px; border: 2px solid #eee; border-radius: 8px; background: white; cursor: pointer; }
+        
         .controls { display: flex; gap: 10px; margin-bottom: 30px; }
-        button.main-btn { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; color: white; }
+        button.main-btn { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
         #startBtn { background: var(--primary); }
         #stopBtn { background: var(--danger); display: none; }
+        button.main-btn:active { transform: scale(0.98); }
         
-        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
-        .filter-btn { background: #eee; color: #666; font-size: 0.8rem; padding: 6px 12px; border-radius: 20px; border: none; cursor: pointer; }
-        .filter-btn.active { background: var(--primary); color: white; }
-        #csvBtn { background: var(--success); color: white; font-size: 0.8rem; padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; }
+        /* グラフエリア */
+        .chart-section { margin: 20px 0; padding: 15px; background: #fafafa; border-radius: 10px; border: 1px solid #eee; }
+        canvas { max-width: 100%; margin-bottom: 20px; }
 
-        .history-item { background: #fafafa; border: 1px solid #eee; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .delete-btn { background: none; border: 1px solid #ddd; color: #ccc; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        /* リスト・ツールバー */
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .history-item { background: #fafafa; border: 1px solid #eee; padding: 12px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .history-cat { font-size: 0.7rem; background: #ddd; padding: 2px 6px; border-radius: 4px; margin-right: 5px; }
+        .delete-btn { background: none; border: 1px solid #ddd; color: #ccc; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
         
         .hidden { display: none; }
-        .guest-msg { text-align: center; padding: 50px 0; color: #777; line-height: 1.6; }
+        .guest-msg { text-align:center; padding:40px; color:#777; }
     </style>
 </head>
 <body>
@@ -51,7 +57,12 @@
 
     <div id="appContent" class="hidden">
         <div class="input-group">
-            <input type="text" id="memoInput" placeholder="今から何をする？">
+            <select id="categorySelect">
+                <option value="仕事">仕事</option>
+                <option value="学習">学習</option>
+                <option value="その他">その他</option>
+            </select>
+            <input type="text" id="memoInput" placeholder="メモ（任意）">
         </div>
         <div class="timer-display" id="display">00:00:00</div>
         <div class="controls">
@@ -59,20 +70,21 @@
             <button id="stopBtn" class="main-btn" onclick="stopTimer()">ストップ</button>
         </div>
 
+        <div class="chart-section">
+            <canvas id="pieChart"></canvas>
+            <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
+            <canvas id="barChart"></canvas>
+        </div>
+
         <div class="toolbar">
-            <div class="filters">
-                <button class="filter-btn active" data-filter="all">すべて</button>
-                <button class="filter-btn" data-filter="day">前日</button>
-                <button class="filter-btn" data-filter="week">1週間</button>
-                <button class="filter-btn" data-filter="month">今月</button>
-            </div>
-            <button id="csvBtn" onclick="downloadCSV()">CSV出力</button>
+            <h3 style="margin:0; font-size:1rem;">最近の履歴</h3>
+            <button id="csvBtn" onclick="downloadCSV()" style="background:var(--success); color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:0.8rem;">CSV出力</button>
         </div>
         <ul id="historyList" style="list-style: none; padding: 0;"></ul>
     </div>
 
     <div id="guestMsg" class="guest-msg">
-        <p>メールアドレスとパスワードでログインしてください。<br>データは安全にクラウドに保存されます。</p>
+        <p>メールアドレスでログインして、<br>データを同期・分析しましょう。</p>
     </div>
 </div>
 
@@ -81,15 +93,15 @@
     import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // --- Firebase設定を貼り付け ---
+    // --- Firebase設定（自分のものに書き換えてください） ---
     const firebaseConfig = {
-        apiKey: "AIzaSyCX7NamPFOs9ktRy05Pvh1c5wqdwSsXcAI",
-        authDomain: "my-time0.firebaseapp.com",
-        projectId: "my-time0",
-        storageBucket: "my-time0.firebasestorage.app",
-        messagingSenderId: "261667531904",
-        appId: "1:261667531904:web:3201b06534b7946fe00a65",
-        measurementId: "G-TQLNLGVQ52"
+    apiKey: "AIzaSyCX7NamPFOs9ktRy05Pvh1c5wqdwSsXcAI",
+    authDomain: "my-time0.firebaseapp.com",
+    projectId: "my-time0",
+    storageBucket: "my-time0.firebasestorage.app",
+    messagingSenderId: "261667531904",
+    appId: "1:261667531904:web:3201b06534b7946fe00a65",
+    measurementId: "G-TQLNLGVQ52"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -99,7 +111,8 @@
     let logs = [];
     let currentUser = null;
     let startTime, timerInterval;
-    let currentFilter = 'all';
+    let myPieChart = null;
+    let myBarChart = null;
 
     // 認証監視
     onAuthStateChanged(auth, async (user) => {
@@ -120,30 +133,6 @@
         }
     });
 
-    // ログイン・登録処理
-    document.getElementById('authBtn').onclick = async () => {
-        const email = prompt("メールアドレスを入力してください");
-        const password = prompt("パスワードを入力してください（6文字以上）");
-        if (!email || !password) return;
-
-        try {
-            // まずはログインを試みる
-            await signInWithEmailAndPassword(auth, email, password);
-        } catch (error) {
-            // アカウントがない場合は新規登録
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                if (confirm("アカウントが見つかりません。この内容で新規登録しますか？")) {
-                    try {
-                        await createUserWithEmailAndPassword(auth, email, password);
-                    } catch (e) { alert("登録エラー: " + e.message); }
-                }
-            } else { alert("エラー: " + error.message); }
-        }
-    };
-
-    document.getElementById('logoutBtn').onclick = () => signOut(auth);
-
-    // タイマー・Firestore関連ロジック (前回と同様)
     window.startTimer = () => {
         startTime = new Date();
         timerInterval = setInterval(() => {
@@ -156,25 +145,32 @@
         document.getElementById('startBtn').style.display = 'none';
         document.getElementById('stopBtn').style.display = 'block';
         document.getElementById('memoInput').disabled = true;
+        document.getElementById('categorySelect').disabled = true;
     };
 
     window.stopTimer = async () => {
         clearInterval(timerInterval);
         const logData = {
             userId: currentUser.uid,
-            memo: document.getElementById('memoInput').value || '名称未設定',
+            category: document.getElementById('categorySelect').value,
+            memo: document.getElementById('memoInput').value || '',
             start: startTime.toISOString(),
             duration: document.getElementById('display').textContent,
             createdAt: new Date()
         };
         await addDoc(collection(db, "timeLogs"), logData);
         await loadLogs();
+        resetUI();
+    };
+
+    function resetUI() {
         document.getElementById('display').textContent = '00:00:00';
         document.getElementById('memoInput').value = '';
         document.getElementById('memoInput').disabled = false;
+        document.getElementById('categorySelect').disabled = false;
         document.getElementById('startBtn').style.display = 'block';
         document.getElementById('stopBtn').style.display = 'none';
-    };
+    }
 
     async function loadLogs() {
         if (!currentUser) return;
@@ -182,34 +178,83 @@
         const snap = await getDocs(q);
         logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         renderLogs();
+        updateCharts();
     }
 
     function renderLogs() {
         const list = document.getElementById('historyList');
         list.innerHTML = '';
-        const now = new Date();
-        const filtered = logs.filter(log => {
-            const logDate = new Date(log.start);
-            if (currentFilter === 'day') {
-                const yest = new Date(); yest.setDate(now.getDate() - 1);
-                return logDate.toDateString() === yest.toDateString();
-            }
-            if (currentFilter === 'week') {
-                const weekAgo = new Date(); weekAgo.setDate(now.getDate() - 7);
-                return logDate >= weekAgo;
-            }
-            if (currentFilter === 'month') {
-                return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
-            }
-            return true;
-        });
-
-        filtered.forEach(log => {
+        logs.slice(0, 10).forEach(log => { // 最新10件を表示
             const li = document.createElement('li');
             li.className = 'history-item';
-            li.innerHTML = `<div><span class="history-memo">${log.memo}</span><span class="history-time">${new Date(log.start).toLocaleString()} | ${log.duration}</span></div>
+            li.innerHTML = `<div>
+                                <span class="history-cat">${log.category}</span>
+                                <strong>${log.memo || '(メモなし)'}</strong><br>
+                                <span style="font-size:0.8rem; color:#888;">${new Date(log.start).toLocaleString()} | ${log.duration}</span>
+                            </div>
                             <button class="delete-btn" onclick="deleteLog('${log.id}')">削除</button>`;
             list.appendChild(li);
+        });
+    }
+
+    function updateCharts() {
+        // --- データ集計ロジック ---
+        const summary = { "仕事": 0, "学習": 0, "その他": 0 };
+        const dailyData = {};
+        const last7Days = [];
+        
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+            last7Days.push(dateStr);
+            dailyData[dateStr] = 0;
+        }
+
+        logs.forEach(log => {
+            const [h, m, s] = log.duration.split(':').map(Number);
+            const totalSeconds = (h * 3600) + (m * 60) + s;
+
+            // カテゴリ別（円グラフ用）
+            if (summary.hasOwnProperty(log.category)) summary[log.category] += totalSeconds;
+
+            // 日別（棒グラフ用：直近7日間のみ）
+            const logDateStr = new Date(log.start).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+            if (dailyData.hasOwnProperty(logDateStr)) dailyData[logDateStr] += totalSeconds;
+        });
+
+        // --- 円グラフ描画 ---
+        const ctxPie = document.getElementById('pieChart').getContext('2d');
+        if (myPieChart) myPieChart.destroy();
+        myPieChart = new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(summary),
+                datasets: [{
+                    data: Object.values(summary).map(sec => (sec / 3600).toFixed(2)),
+                    backgroundColor: ['#4a90e2', '#27ae60', '#f1c40f']
+                }]
+            },
+            options: { plugins: { title: { display: true, text: 'カテゴリ別合計 (時間)' } } }
+        });
+
+        // --- 棒グラフ描画 ---
+        const ctxBar = document.getElementById('barChart').getContext('2d');
+        if (myBarChart) myBarChart.destroy();
+        myBarChart = new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: last7Days,
+                datasets: [{
+                    label: '稼働時間 (h)',
+                    data: last7Days.map(date => (dailyData[date] / 3600).toFixed(2)),
+                    backgroundColor: '#4a90e2'
+                }]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } },
+                plugins: { title: { display: true, text: '直近7日間の推移 (時間)' } }
+            }
         });
     }
 
@@ -218,21 +263,21 @@
     };
 
     window.downloadCSV = () => {
-        let csv = "\uFEFF開始日時,メモ,経過時間\n";
-        logs.forEach(l => csv += `"${new Date(l.start).toLocaleString()}","${l.memo}","${l.duration}"\n`);
+        let csv = "\uFEFFカテゴリ,メモ,開始日時,経過時間\n";
+        logs.forEach(l => csv += `"${l.category}","${l.memo}","${new Date(l.start).toLocaleString()}","${l.duration}"\n`);
         const blob = new Blob([csv], { type: 'text/csv' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'log.csv'; a.click();
     };
 
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.onclick = (e) => {
-            currentFilter = e.target.dataset.filter;
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            renderLogs();
-        };
-    });
+    document.getElementById('authBtn').onclick = async () => {
+        const email = prompt("メールアドレス");
+        const password = prompt("パスワード(6文字以上)");
+        if (email && password) {
+            try { await signInWithEmailAndPassword(auth, email, password); } 
+            catch { try { await createUserWithEmailAndPassword(auth, email, password); } catch(e) { alert("認証エラー: " + e.message); } }
+        }
+    };
+    document.getElementById('logoutBtn').onclick = () => signOut(auth);
 </script>
 </body>
 </html>
-
