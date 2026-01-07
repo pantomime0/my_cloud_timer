@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloud Time Tracker Pro</title>
+    <title>Cloud Time Tracker Pro - Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --primary: #4a90e2; --danger: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
@@ -19,8 +19,8 @@
         /* 入力エリア */
         .timer-display { font-size: 3.5rem; font-weight: bold; text-align: center; margin: 15px 0; color: #333; font-variant-numeric: tabular-nums; }
         .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
-        input[type="text"] { flex: 2; padding: 12px; border: 2px solid #eee; border-radius: 8px; outline: none; }
-        select { flex: 1; padding: 12px; border: 2px solid #eee; border-radius: 8px; background: white; cursor: pointer; }
+        input[type="text"] { flex: 2; padding: 12px; border: 2px solid #eee; border-radius: 8px; outline: none; font-size: 1rem; }
+        select { flex: 1; padding: 12px; border: 2px solid #eee; border-radius: 8px; background: white; cursor: pointer; font-size: 1rem; }
         
         .controls { display: flex; gap: 10px; margin-bottom: 30px; }
         button.main-btn { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
@@ -32,10 +32,10 @@
         .chart-section { margin: 20px 0; padding: 15px; background: #fafafa; border-radius: 10px; border: 1px solid #eee; }
         canvas { max-width: 100%; margin-bottom: 20px; }
 
-        /* リスト・ツールバー */
+        /* リスト */
         .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .history-item { background: #fafafa; border: 1px solid #eee; padding: 12px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .history-cat { font-size: 0.7rem; background: #ddd; padding: 2px 6px; border-radius: 4px; margin-right: 5px; }
+        .history-item { background: #fafafa; border: 1px solid #eee; padding: 12px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+        .history-cat { font-size: 0.7rem; background: #ddd; padding: 2px 6px; border-radius: 4px; margin-right: 5px; color: #555; }
         .delete-btn { background: none; border: 1px solid #ddd; color: #ccc; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
         
         .hidden { display: none; }
@@ -53,7 +53,7 @@
         </div>
     </div>
 
-    <h2>タイムトラッカー</h2>
+    <h2 style="text-align: center; color: #333;">Time Tracker Pro</h2>
 
     <div id="appContent" class="hidden">
         <div class="input-group">
@@ -62,7 +62,7 @@
                 <option value="学習">学習</option>
                 <option value="その他">その他</option>
             </select>
-            <input type="text" id="memoInput" placeholder="メモ（任意）">
+            <input type="text" id="memoInput" placeholder="具体的に何をする？（例：数学、会議）">
         </div>
         <div class="timer-display" id="display">00:00:00</div>
         <div class="controls">
@@ -77,14 +77,14 @@
         </div>
 
         <div class="toolbar">
-            <h3 style="margin:0; font-size:1rem;">最近の履歴</h3>
+            <h3 style="margin:0; font-size:1rem;">最近の記録</h3>
             <button id="csvBtn" onclick="downloadCSV()" style="background:var(--success); color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:0.8rem;">CSV出力</button>
         </div>
         <ul id="historyList" style="list-style: none; padding: 0;"></ul>
     </div>
 
     <div id="guestMsg" class="guest-msg">
-        <p>メールアドレスでログインして、<br>データを同期・分析しましょう。</p>
+        <p>ログインして計測を開始しましょう。<br>グラフで時間の使い道が見える化されます。</p>
     </div>
 </div>
 
@@ -93,7 +93,7 @@
     import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // --- Firebase設定（自分のものに書き換えてください） ---
+    // --- 【重要】Firebase設定をここに貼り付け ---
     const firebaseConfig = {
     apiKey: "AIzaSyCX7NamPFOs9ktRy05Pvh1c5wqdwSsXcAI",
     authDomain: "my-time0.firebaseapp.com",
@@ -114,7 +114,6 @@
     let myPieChart = null;
     let myBarChart = null;
 
-    // 認証監視
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUser = user;
@@ -184,7 +183,7 @@
     function renderLogs() {
         const list = document.getElementById('historyList');
         list.innerHTML = '';
-        logs.slice(0, 10).forEach(log => { // 最新10件を表示
+        logs.slice(0, 10).forEach(log => {
             const li = document.createElement('li');
             li.className = 'history-item';
             li.innerHTML = `<div>
@@ -197,83 +196,88 @@
         });
     }
 
-    function updateCharts() {
-    if (logs.length === 0) return; // データがなければ何もしない
-
-    const summary = { "仕事": 0, "学習": 0, "その他": 0 };
-    const dailyData = {};
-    const last7Days = [];
-    
-    // 今日を基準に過去7日間を正確に計算
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // 時間をリセットして日付のみにする
-
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        // "1/7" のような形式でキーを作成
-        const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
-        last7Days.push(dateStr);
-        dailyData[dateStr] = 0;
+    function formatDurationJP(totalSeconds) {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        return h > 0 ? `${h}時間${m}分` : `${m}分`;
     }
 
-    logs.forEach(log => {
-        const [h, m, s] = log.duration.split(':').map(Number);
-        const totalSeconds = (h * 3600) + (m * 60) + s;
+    function updateCharts() {
+        if (logs.length === 0) return;
+        const memoSummary = {};
+        const dailyData = {};
+        const last7Days = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        // 1. 円グラフ用集計
-        const cat = log.category || "その他";
-        if (summary.hasOwnProperty(cat)) {
-            summary[cat] += totalSeconds;
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+            last7Days.push(dateStr);
+            dailyData[dateStr] = 0;
         }
 
-        // 2. 棒グラフ用集計（タイムゾーンを考慮）
-        const logDate = new Date(log.start);
-        const logDateStr = `${logDate.getMonth() + 1}/${logDate.getDate()}`;
-        
-        if (dailyData.hasOwnProperty(logDateStr)) {
-            dailyData[logDateStr] += totalSeconds;
-        }
-    });
+        logs.forEach(log => {
+            const [h, m, s] = log.duration.split(':').map(Number);
+            const totalSeconds = (h * 3600) + (m * 60) + s;
+            const memoKey = log.memo ? `${log.category}: ${log.memo}` : log.category;
+            memoSummary[memoKey] = (memoSummary[memoKey] || 0) + totalSeconds;
+            const logDate = new Date(log.start);
+            const logDateStr = `${logDate.getMonth() + 1}/${logDate.getDate()}`;
+            if (dailyData.hasOwnProperty(logDateStr)) dailyData[logDateStr] += totalSeconds;
+        });
 
-    // --- 円グラフ描画 ---
-    const ctxPie = document.getElementById('pieChart').getContext('2d');
-    if (myPieChart) myPieChart.destroy();
-    myPieChart = new Chart(ctxPie, {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(summary),
-            datasets: [{
-                data: Object.values(summary).map(sec => (sec / 3600).toFixed(2)),
-                backgroundColor: ['#4a90e2', '#27ae60', '#f1c40f']
-            }]
-        },
-        options: { 
-            responsive: true,
-            plugins: { title: { display: true, text: 'カテゴリ別合計 (時間)' } } 
-        }
-    });
+        // 円グラフ
+        const ctxPie = document.getElementById('pieChart').getContext('2d');
+        if (myPieChart) myPieChart.destroy();
+        myPieChart = new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(memoSummary),
+                datasets: [{
+                    data: Object.values(memoSummary).map(sec => (sec / 3600).toFixed(2)),
+                    backgroundColor: ['#4a90e2', '#27ae60', '#f1c40f', '#e67e22', '#9b59b6', '#1abc9c']
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: '詳細内訳 (時間)' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` ${ctx.label}: ${formatDurationJP(memoSummary[ctx.label])}`
+                        }
+                    }
+                }
+            }
+        });
 
-    // --- 棒グラフ描画 ---
-    const ctxBar = document.getElementById('barChart').getContext('2d');
-    if (myBarChart) myBarChart.destroy();
-    myBarChart = new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-            labels: last7Days,
-            datasets: [{
-                label: '稼働時間 (h)',
-                data: last7Days.map(date => (dailyData[date] / 3600).toFixed(2)),
-                backgroundColor: '#4a90e2'
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: { y: { beginAtZero: true } },
-            plugins: { title: { display: true, text: '直近7日間の推移 (時間)' } }
-        }
-    });
-}
+        // 棒グラフ
+        const ctxBar = document.getElementById('barChart').getContext('2d');
+        if (myBarChart) myBarChart.destroy();
+        myBarChart = new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: last7Days,
+                datasets: [{
+                    label: '稼働時間',
+                    data: last7Days.map(d => (dailyData[d] / 3600).toFixed(2)),
+                    backgroundColor: '#4a90e2'
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: '直近7日間の推移' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` 合計: ${formatDurationJP(dailyData[ctx.label])}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     window.deleteLog = async (id) => {
         if (confirm('削除しますか？')) { await deleteDoc(doc(db, "timeLogs", id)); await loadLogs(); }
     };
@@ -297,4 +301,3 @@
 </script>
 </body>
 </html>
-
