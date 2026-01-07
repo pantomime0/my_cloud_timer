@@ -6,7 +6,7 @@
     <title>Time Tracker Pro - Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --primary: #4a90e2; --danger: #e74c3c; --success: #27ae60; --warning: #f39c12; --bg: #f4f7f6; }
+        :root { --primary: #4a90e2; --danger: #e74c3c; --success: #27ae60; --warning: #f1c40f; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 600px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .auth-section { text-align: right; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; width: 100%; }
@@ -21,7 +21,7 @@
         .controls { display: flex; gap: 10px; margin-bottom: 20px; }
         button.main-btn { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; color: white; }
         #startBtn { background: var(--primary); }
-        #pauseBtn { background: var(--warning); display: none; }
+        #pauseBtn { background: #f39c12; display: none; }
         #stopBtn { background: var(--danger); display: none; }
         #addManualBtn { background: #666; width: 100%; margin-bottom: 20px; }
         .chart-section { margin: 20px 0; padding: 15px; background: #fafafa; border-radius: 10px; border: 1px solid #eee; }
@@ -99,6 +99,8 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const CATEGORY_COLORS = { "仕事": "#4a90e2", "学習": "#27ae60", "その他": "#f1c40f" };
 
     const firebaseConfig = {
         // --- 設定を貼り付け ---
@@ -272,24 +274,37 @@
             const [h,m,s] = l.duration.split(':').map(Number);
             const sec = (h*3600)+(m*60)+s;
             const key = l.memo ? `${l.category}: ${l.memo}` : l.category;
-            memoSummary[key] = (memoSummary[key]||0)+sec;
-            const logDate = new Date(l.start);
-            const dStr = `${logDate.getMonth()+1}/${logDate.getDate()}`;
+            
+            memoSummary[key] = {
+                seconds: (memoSummary[key]?.seconds || 0) + sec,
+                category: l.category
+            };
+
+            const dStr = `${new Date(l.start).getMonth()+1}/${new Date(l.start).getDate()}`;
             if (dailyCategoryData[l.category] && dailyCategoryData[l.category].hasOwnProperty(dStr)) {
                 dailyCategoryData[l.category][dStr] += sec;
             }
         });
 
-        // 円グラフ
+        // 円グラフ描画（白い境界線を追加）
+        const pieLabels = Object.keys(memoSummary);
+        const pieData = pieLabels.map(k => (memoSummary[k].seconds / 3600).toFixed(2));
+        const pieColors = pieLabels.map(k => CATEGORY_COLORS[memoSummary[k].category] || "#ccc");
+
         const ctxP = document.getElementById('pieChart').getContext('2d');
         if(myPieChart) myPieChart.destroy();
         myPieChart = new Chart(ctxP, {
             type: 'doughnut',
-            data: { labels: Object.keys(memoSummary), datasets: [{ data: Object.values(memoSummary).map(s => (s/3600).toFixed(2)), backgroundColor: ['#4a90e2','#27ae60','#f1c40f','#e67e22','#9b59b6'] }] },
-            options: { plugins: { title: { display:true, text:'詳細内訳 (時間)' } } }
+            data: { labels: pieLabels, datasets: [{ 
+                data: pieData, 
+                backgroundColor: pieColors,
+                borderColor: '#ffffff', // 境界線を白に
+                borderWidth: 2          // 境界線の太さ
+            }] },
+            options: { plugins: { title: { display:true, text:'詳細内訳 (時間)' }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${formatDurationJP(memoSummary[ctx.label].seconds)}` } } } }
         });
 
-        // 積み上げ棒グラフ
+        // 積み上げ棒グラフ描画
         const ctxB = document.getElementById('barChart').getContext('2d');
         if(myBarChart) myBarChart.destroy();
         myBarChart = new Chart(ctxB, {
@@ -297,20 +312,14 @@
             data: {
                 labels: last7Days,
                 datasets: [
-                    { label: '仕事', data: last7Days.map(d => (dailyCategoryData["仕事"][d]/3600).toFixed(2)), backgroundColor: '#4a90e2' },
-                    { label: '学習', data: last7Days.map(d => (dailyCategoryData["学習"][d]/3600).toFixed(2)), backgroundColor: '#27ae60' },
-                    { label: 'その他', data: last7Days.map(d => (dailyCategoryData["その他"][d]/3600).toFixed(2)), backgroundColor: '#f1c40f' }
+                    { label: '仕事', data: last7Days.map(d => (dailyCategoryData["仕事"][d]/3600).toFixed(2)), backgroundColor: CATEGORY_COLORS["仕事"] },
+                    { label: '学習', data: last7Days.map(d => (dailyCategoryData["学習"][d]/3600).toFixed(2)), backgroundColor: CATEGORY_COLORS["学習"] },
+                    { label: 'その他', data: last7Days.map(d => (dailyCategoryData["その他"][d]/3600).toFixed(2)), backgroundColor: CATEGORY_COLORS["その他"] }
                 ]
             },
             options: {
-                scales: {
-                    x: { stacked: true },
-                    y: { stacked: true, min:0, max:12, ticks: { stepSize:1 }, title: { display:true, text:'合計時間 (h)' } }
-                },
-                plugins: {
-                    title: { display:true, text:'直近7日間の推移' },
-                    tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${formatDurationJP(dailyCategoryData[ctx.dataset.label][ctx.label])}` } }
-                }
+                scales: { x: { stacked: true }, y: { stacked: true, min:0, max:12, ticks: { stepSize:1 }, title: { display:true, text:'合計時間 (h)' } } },
+                plugins: { title: { display:true, text:'直近7日間の推移' }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${formatDurationJP(dailyCategoryData[ctx.dataset.label][ctx.label])}` } } }
             }
         });
     }
