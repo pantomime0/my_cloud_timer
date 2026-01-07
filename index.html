@@ -3,48 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Time Tracker Pro</title>
+    <title>Time Tracker Pro - Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --primary: #4a90e2; --danger: #e74c3c; --success: #27ae60; --warning: #f39c12; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 600px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        
-        /* 認証・表示切り替え */
         .auth-section { text-align: right; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; width: 100%; }
         #authBtn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .user-info { display: none; align-items: center; gap: 10px; justify-content: flex-end; }
         #logoutBtn { background: none; border: none; color: #999; cursor: pointer; text-decoration: underline; }
-
-        /* メインコンテンツ */
         .timer-display { font-size: 3.5rem; font-weight: bold; text-align: center; margin: 15px 0; color: #333; font-variant-numeric: tabular-nums; }
         .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
         input, select { padding: 12px; border: 2px solid #eee; border-radius: 8px; outline: none; font-size: 1rem; box-sizing: border-box; }
         input[type="text"] { flex: 2; }
         select { flex: 1; }
-        
         .controls { display: flex; gap: 10px; margin-bottom: 20px; }
         button.main-btn { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; color: white; }
         #startBtn { background: var(--primary); }
         #pauseBtn { background: var(--warning); display: none; }
         #stopBtn { background: var(--danger); display: none; }
         #addManualBtn { background: #666; width: 100%; margin-bottom: 20px; }
-
         .chart-section { margin: 20px 0; padding: 15px; background: #fafafa; border-radius: 10px; border: 1px solid #eee; }
-        
-        .history-item { background: #fafafa; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .history-item { background: #fafafa; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
         .btn-group { display: flex; gap: 10px; }
-        .edit-btn { background: #eee; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        .delete-btn { background: #ffebeb; color: var(--danger); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        
+        .edit-btn { background: #eee; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .delete-btn { background: #ffebeb; color: var(--danger); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
         .hidden { display: none !important; }
-        .guest-msg { text-align:center; padding:50px 0; color:#777; }
-
-        /* モーダル */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-        .modal-content h3 { margin-top: 0; }
-        .modal-content label { font-size: 0.8rem; color: #666; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; }
     </style>
 </head>
 <body>
@@ -57,13 +44,10 @@
             <button id="logoutBtn">ログアウト</button>
         </div>
     </div>
-
-    <h2 style="text-align: center; color: #333;">Time Tracker Pro</h2>
-
-    <div id="guestMsg" class="guest-msg">
+    <h2 style="text-align: center;">Time Tracker Pro</h2>
+    <div id="guestMsg" style="text-align:center; padding:50px 0; color:#777;">
         <p>ログインして計測を開始しましょう。</p>
     </div>
-
     <div id="appContent" class="hidden">
         <div class="input-group">
             <select id="categorySelect">
@@ -80,13 +64,11 @@
             <button id="stopBtn" class="main-btn" onclick="stopTimer()">ストップ</button>
         </div>
         <button id="addManualBtn" class="main-btn" onclick="openManualModal()">+ 手動で記録を追加</button>
-
         <div class="chart-section">
             <canvas id="pieChart"></canvas>
             <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
             <canvas id="barChart"></canvas>
         </div>
-
         <ul id="historyList" style="list-style: none; padding: 0;"></ul>
     </div>
 </div>
@@ -136,9 +118,7 @@
     let logs = [];
     let currentUser = null;
     let timerInterval, startTime;
-    let elapsedTime = 0;
-    let isPaused = false;
-    let currentEditId = null;
+    let elapsedTime = 0, isPaused = false, currentEditId = null;
     let myPieChart = null, myBarChart = null;
 
     onAuthStateChanged(auth, async (user) => {
@@ -159,7 +139,6 @@
         }
     });
 
-    // --- タイマー ---
     window.startTimer = () => {
         startTime = Date.now() - elapsedTime;
         timerInterval = setInterval(() => {
@@ -180,24 +159,21 @@
             clearInterval(timerInterval);
             elapsedTime = Date.now() - startTime;
             document.getElementById('pauseBtn').textContent = '再開';
-            document.getElementById('pauseBtn').style.background = 'var(--success)';
             isPaused = true;
         } else {
             startTimer();
             document.getElementById('pauseBtn').textContent = '一時停止';
-            document.getElementById('pauseBtn').style.background = 'var(--warning)';
         }
     };
 
     window.stopTimer = async () => {
         clearInterval(timerInterval);
-        const duration = document.getElementById('display').textContent;
         const logData = {
             userId: currentUser.uid,
             category: document.getElementById('categorySelect').value,
             memo: document.getElementById('memoInput').value || '',
             start: new Date(startTime).toISOString(),
-            duration: duration,
+            duration: document.getElementById('display').textContent,
             createdAt: new Date()
         };
         await addDoc(collection(db, "timeLogs"), logData);
@@ -215,12 +191,10 @@
         document.getElementById('memoInput').value = '';
     }
 
-    // --- 手動・編集 ---
     window.openManualModal = () => {
         currentEditId = null;
+        const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         document.getElementById('modalTitle').textContent = "手動で記録を追加";
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         document.getElementById('editStart').value = now.toISOString().slice(0,16);
         document.getElementById('editMemo').value = "";
         document.getElementById('editDuration').value = "01:00:00";
@@ -231,8 +205,7 @@
         const log = logs.find(l => l.id === id);
         currentEditId = id;
         document.getElementById('modalTitle').textContent = "記録の編集";
-        const d = new Date(log.start);
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        const d = new Date(log.start); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         document.getElementById('editStart').value = d.toISOString().slice(0,16);
         document.getElementById('editCategory').value = log.category;
         document.getElementById('editMemo').value = log.memo;
@@ -247,15 +220,9 @@
             start: new Date(document.getElementById('editStart').value).toISOString(),
             duration: document.getElementById('editDuration').value
         };
-        if (currentEditId) {
-            await updateDoc(doc(db, "timeLogs", currentEditId), logData);
-        } else {
-            logData.userId = currentUser.uid;
-            logData.createdAt = new Date();
-            await addDoc(collection(db, "timeLogs"), logData);
-        }
-        closeModal();
-        await loadLogs();
+        if (currentEditId) await updateDoc(doc(db, "timeLogs", currentEditId), logData);
+        else { logData.userId = currentUser.uid; logData.createdAt = new Date(); await addDoc(collection(db, "timeLogs"), logData); }
+        closeModal(); await loadLogs();
     };
 
     window.closeModal = () => document.getElementById('editModal').classList.add('hidden');
@@ -275,20 +242,13 @@
         logs.slice(0, 10).forEach(log => {
             const li = document.createElement('li');
             li.className = 'history-item';
-            li.innerHTML = `
-                <div>
-                    <strong>${log.category}</strong>: ${log.memo || '(なし)'}<br>
-                    <small>${new Date(log.start).toLocaleString()} | ${log.duration}</small>
-                </div>
-                <div class="btn-group">
-                    <button class="edit-btn" onclick="editLog('${log.id}')">編集</button>
-                    <button class="delete-btn" onclick="deleteLog('${log.id}')">削除</button>
-                </div>`;
+            li.innerHTML = `<div><strong>${log.category}</strong>: ${log.memo || '(なし)'}<br><small>${new Date(log.start).toLocaleString()} | ${log.duration}</small></div>
+                <div class="btn-group"><button class="edit-btn" onclick="editLog('${log.id}')">編集</button>
+                <button class="delete-btn" onclick="deleteLog('${log.id}')">削除</button></div>`;
             list.appendChild(li);
         });
     }
 
-    // --- グラフ ---
     function formatDurationJP(s) {
         const h = Math.floor(s/3600); const m = Math.floor((s%3600)/60);
         return h > 0 ? `${h}時間${m}分` : `${m}分`;
@@ -296,36 +256,62 @@
 
     function updateCharts() {
         if (logs.length === 0) return;
-        const memoSummary = {}; const dailyData = {}; const last7Days = [];
+        const memoSummary = {};
+        const dailyCategoryData = { "仕事": {}, "学習": {}, "その他": {} };
+        const last7Days = [];
         const today = new Date(); today.setHours(0,0,0,0);
+        
         for(let i=6; i>=0; i--) {
             const d = new Date(today); d.setDate(d.getDate()-i);
             const s = `${d.getMonth()+1}/${d.getDate()}`;
-            last7Days.push(s); dailyData[s] = 0;
+            last7Days.push(s);
+            dailyCategoryData["仕事"][s] = 0; dailyCategoryData["学習"][s] = 0; dailyCategoryData["その他"][s] = 0;
         }
+
         logs.forEach(l => {
             const [h,m,s] = l.duration.split(':').map(Number);
             const sec = (h*3600)+(m*60)+s;
             const key = l.memo ? `${l.category}: ${l.memo}` : l.category;
             memoSummary[key] = (memoSummary[key]||0)+sec;
-            const dStr = `${new Date(l.start).getMonth()+1}/${new Date(l.start).getDate()}`;
-            if(dailyData.hasOwnProperty(dStr)) dailyData[dStr] += sec;
+            const logDate = new Date(l.start);
+            const dStr = `${logDate.getMonth()+1}/${logDate.getDate()}`;
+            if (dailyCategoryData[l.category] && dailyCategoryData[l.category].hasOwnProperty(dStr)) {
+                dailyCategoryData[l.category][dStr] += sec;
+            }
         });
 
+        // 円グラフ
         const ctxP = document.getElementById('pieChart').getContext('2d');
         if(myPieChart) myPieChart.destroy();
         myPieChart = new Chart(ctxP, {
             type: 'doughnut',
             data: { labels: Object.keys(memoSummary), datasets: [{ data: Object.values(memoSummary).map(s => (s/3600).toFixed(2)), backgroundColor: ['#4a90e2','#27ae60','#f1c40f','#e67e22','#9b59b6'] }] },
-            options: { plugins: { title: { display:true, text:'内訳 (時間)' } } }
+            options: { plugins: { title: { display:true, text:'詳細内訳 (時間)' } } }
         });
 
+        // 積み上げ棒グラフ
         const ctxB = document.getElementById('barChart').getContext('2d');
         if(myBarChart) myBarChart.destroy();
         myBarChart = new Chart(ctxB, {
             type: 'bar',
-            data: { labels: last7Days, datasets: [{ label:'稼働時間', data: last7Days.map(d => (dailyData[d]/3600).toFixed(2)), backgroundColor:'#4a90e2' }] },
-            options: { scales: { y: { min:0, max:12, ticks: { stepSize:1 } } }, plugins: { title: { display:true, text:'7日間の推移' } } }
+            data: {
+                labels: last7Days,
+                datasets: [
+                    { label: '仕事', data: last7Days.map(d => (dailyCategoryData["仕事"][d]/3600).toFixed(2)), backgroundColor: '#4a90e2' },
+                    { label: '学習', data: last7Days.map(d => (dailyCategoryData["学習"][d]/3600).toFixed(2)), backgroundColor: '#27ae60' },
+                    { label: 'その他', data: last7Days.map(d => (dailyCategoryData["その他"][d]/3600).toFixed(2)), backgroundColor: '#f1c40f' }
+                ]
+            },
+            options: {
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, min:0, max:12, ticks: { stepSize:1 }, title: { display:true, text:'合計時間 (h)' } }
+                },
+                plugins: {
+                    title: { display:true, text:'直近7日間の推移' },
+                    tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${formatDurationJP(dailyCategoryData[ctx.dataset.label][ctx.label])}` } }
+                }
+            }
         });
     }
 
