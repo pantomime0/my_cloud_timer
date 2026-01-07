@@ -198,66 +198,82 @@
     }
 
     function updateCharts() {
-        // --- データ集計ロジック ---
-        const summary = { "仕事": 0, "学習": 0, "その他": 0 };
-        const dailyData = {};
-        const last7Days = [];
-        
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const dateStr = d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
-            last7Days.push(dateStr);
-            dailyData[dateStr] = 0;
-        }
+    if (logs.length === 0) return; // データがなければ何もしない
 
-        logs.forEach(log => {
-            const [h, m, s] = log.duration.split(':').map(Number);
-            const totalSeconds = (h * 3600) + (m * 60) + s;
+    const summary = { "仕事": 0, "学習": 0, "その他": 0 };
+    const dailyData = {};
+    const last7Days = [];
+    
+    // 今日を基準に過去7日間を正確に計算
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 時間をリセットして日付のみにする
 
-            // カテゴリ別（円グラフ用）
-            if (summary.hasOwnProperty(log.category)) summary[log.category] += totalSeconds;
-
-            // 日別（棒グラフ用：直近7日間のみ）
-            const logDateStr = new Date(log.start).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
-            if (dailyData.hasOwnProperty(logDateStr)) dailyData[logDateStr] += totalSeconds;
-        });
-
-        // --- 円グラフ描画 ---
-        const ctxPie = document.getElementById('pieChart').getContext('2d');
-        if (myPieChart) myPieChart.destroy();
-        myPieChart = new Chart(ctxPie, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(summary),
-                datasets: [{
-                    data: Object.values(summary).map(sec => (sec / 3600).toFixed(2)),
-                    backgroundColor: ['#4a90e2', '#27ae60', '#f1c40f']
-                }]
-            },
-            options: { plugins: { title: { display: true, text: 'カテゴリ別合計 (時間)' } } }
-        });
-
-        // --- 棒グラフ描画 ---
-        const ctxBar = document.getElementById('barChart').getContext('2d');
-        if (myBarChart) myBarChart.destroy();
-        myBarChart = new Chart(ctxBar, {
-            type: 'bar',
-            data: {
-                labels: last7Days,
-                datasets: [{
-                    label: '稼働時間 (h)',
-                    data: last7Days.map(date => (dailyData[date] / 3600).toFixed(2)),
-                    backgroundColor: '#4a90e2'
-                }]
-            },
-            options: {
-                scales: { y: { beginAtZero: true } },
-                plugins: { title: { display: true, text: '直近7日間の推移 (時間)' } }
-            }
-        });
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        // "1/7" のような形式でキーを作成
+        const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        last7Days.push(dateStr);
+        dailyData[dateStr] = 0;
     }
 
+    logs.forEach(log => {
+        const [h, m, s] = log.duration.split(':').map(Number);
+        const totalSeconds = (h * 3600) + (m * 60) + s;
+
+        // 1. 円グラフ用集計
+        const cat = log.category || "その他";
+        if (summary.hasOwnProperty(cat)) {
+            summary[cat] += totalSeconds;
+        }
+
+        // 2. 棒グラフ用集計（タイムゾーンを考慮）
+        const logDate = new Date(log.start);
+        const logDateStr = `${logDate.getMonth() + 1}/${logDate.getDate()}`;
+        
+        if (dailyData.hasOwnProperty(logDateStr)) {
+            dailyData[logDateStr] += totalSeconds;
+        }
+    });
+
+    // --- 円グラフ描画 ---
+    const ctxPie = document.getElementById('pieChart').getContext('2d');
+    if (myPieChart) myPieChart.destroy();
+    myPieChart = new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(summary),
+            datasets: [{
+                data: Object.values(summary).map(sec => (sec / 3600).toFixed(2)),
+                backgroundColor: ['#4a90e2', '#27ae60', '#f1c40f']
+            }]
+        },
+        options: { 
+            responsive: true,
+            plugins: { title: { display: true, text: 'カテゴリ別合計 (時間)' } } 
+        }
+    });
+
+    // --- 棒グラフ描画 ---
+    const ctxBar = document.getElementById('barChart').getContext('2d');
+    if (myBarChart) myBarChart.destroy();
+    myBarChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: last7Days,
+            datasets: [{
+                label: '稼働時間 (h)',
+                data: last7Days.map(date => (dailyData[date] / 3600).toFixed(2)),
+                backgroundColor: '#4a90e2'
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } },
+            plugins: { title: { display: true, text: '直近7日間の推移 (時間)' } }
+        }
+    });
+}
     window.deleteLog = async (id) => {
         if (confirm('削除しますか？')) { await deleteDoc(doc(db, "timeLogs", id)); await loadLogs(); }
     };
@@ -281,3 +297,4 @@
 </script>
 </body>
 </html>
+
